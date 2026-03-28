@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hot Hot Fruit - Telegram Edition</title>
+    
+    <!-- External Libraries -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --neon-pink: #ff00de;
+            --neon-blue: #00d2ff;
+            --neon-purple: #9400d3;
+            --bg-dark: #0a000a;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-dark);
+            background: radial-gradient(circle at center, #2b002b 0%, #000 100%);
+            color: white;
+            font-family: 'Rajdhani', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- Header --- */
+        .header {
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.5);
+            border-bottom: 1px solid var(--neon-purple);
+        }
+
+        .user-info { display: flex; align-items: center; gap: 8px; }
+        .user-info span { color: var(--neon-blue); font-weight: bold; }
+
+        /* --- Slot Machine Area --- */
+        .game-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+        }
+
+        .slot-frame {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            aspect-ratio: 5 / 3;
+            background: #000;
+            border: 3px solid var(--neon-pink);
+            border-radius: 12px;
+            box-shadow: 0 0 20px var(--neon-pink), inset 0 0 15px var(--neon-purple);
+            overflow: hidden;
+            display: flex;
+        }
+
+        .reel {
+            flex: 1;
+            height: 100%;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .reel-strip {
+            position: absolute;
+            width: 100%;
+            will-change: transform;
+        }
+
+        .symbol {
+            height: calc(100% / 3); /* 3 rows */
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            position: relative;
+        }
+
+        /* --- Animations --- */
+        .hot-hot-glow {
+            animation: symbolPulse 0.4s infinite alternate;
+            filter: drop-shadow(0 0 10px #fff) drop-shadow(0 0 15px var(--neon-pink));
+            z-index: 2;
+        }
+
+        @keyframes symbolPulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.15); }
+        }
+
+        .blur { filter: blur(6px); }
+
+        /* --- Controls --- */
+        .controls {
+            padding: 20px;
+            background: linear-gradient(to top, #1a001a, transparent);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .stats-bar {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .stat-box { text-align: center; }
+        .stat-label { font-size: 10px; color: #aaa; text-transform: uppercase; }
+        .stat-value { font-size: 18px; color: #fff; text-shadow: 0 0 10px var(--neon-blue); }
+
+        #spin-btn {
+            width: 80%;
+            height: 60px;
+            border-radius: 30px;
+            border: none;
+            background: linear-gradient(180deg, var(--neon-pink), #80006e);
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 22px;
+            font-weight: bold;
+            box-shadow: 0 0 20px rgba(255, 0, 222, 0.5);
+            transition: transform 0.1s;
+        }
+
+        #spin-btn:active { transform: scale(0.95); }
+        #spin-btn:disabled { opacity: 0.5; filter: grayscale(1); }
+
+        /* Win Overlay */
+        #win-display {
+            position: absolute;
+            top: 40%;
+            width: 100%;
+            text-align: center;
+            font-size: 48px;
+            font-family: 'Orbitron', sans-serif;
+            color: #fff;
+            text-shadow: 0 0 20px var(--neon-blue), 0 0 40px var(--neon-pink);
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="user-info">
+            <span id="username">PLAYER</span>
+        </div>
+        <div class="stat-box">
+            <div class="stat-label">Balance</div>
+            <div class="stat-value">$<span id="balance">1000</span></div>
+        </div>
+    </div>
+
+    <div class="game-container">
+        <div id="win-display">BIG WIN!</div>
+        <div class="slot-frame" id="slot-frame">
+            <!-- Reels injected by JS -->
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="stats-bar">
+            <div class="stat-box">
+                <div class="stat-label">Last Win</div>
+                <div class="stat-value">$<span id="last-win">0</span></div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Bet</div>
+                <div class="stat-value">$10</div>
+            </div>
+        </div>
+        <button id="spin-btn">SPIN</button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.enableClosingConfirmation();
+
+        // Game Configuration
+        const SYMBOLS = [
+            { id: '7', label: '7️⃣', val: 100 },
+            { id: 'BAR', label: '🍫', val: 50 },
+            { id: 'BELL', label: '🔔', val: 30 },
+            { id: 'WMELON', label: '🍉', val: 20 },
+            { id: 'ORANGE', label: '🍊', val: 10 },
+            { id: 'CHERRY', label: '🍒', val: 5 }
+        ];
+
+        const PAYLINES = [
+            [1,1,1,1,1], [0,0,0,0,0], [2,2,2,2,2], // Rows
+            [0,1,2,1,0], [2,1,0,1,2]               // Vs
+        ];
+
+        let balance = 1000;
+        let isSpinning = false;
+        const reelElements = [];
+        const reelCount = 5;
+
+        // Initialize Game
+        function init() {
+            if (tg.initDataUnsafe?.user) {
+                document.getElementById('username').innerText = tg.initDataUnsafe.user.first_name.toUpperCase();
+            }
+
+            const frame = document.getElementById('slot-frame');
+            for (let i = 0; i < reelCount; i++) {
+                const reel = document.createElement('div');
+                reel.className = 'reel';
+                const strip = document.createElement('div');
+                strip.className = 'reel-strip';
+                reel.appendChild(strip);
+                frame.appendChild(reel);
+                reelElements.push(strip);
+                
+                // Initial random symbols
+                for (let j = 0; j < 10; j++) {
+                    addSymbol(strip, getRandomSymbol());
+                }
+            }
+        }
+
+        function getRandomSymbol() {
+            return SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+        }
+
+        function addSymbol(strip, symbolData, isHot = false) {
+            const div = document.createElement('div');
+            div.className = 'symbol';
+            div.innerHTML = symbolData.label;
+            if (isHot) div.classList.add('hot-hot-glow');
+            div.dataset.id = symbolData.id;
+            div.dataset.value = symbolData.count || 1;
+            strip.prepend(div);
+            return div;
+        }
+
+        async function spin() {
+            if (isSpinning || balance < 10) return;
+
+            isSpinning = true;
+            balance -= 10;
+            updateUI();
+            
+            document.getElementById('spin-btn').disabled = true;
+            document.getElementById('win-display').style.display = 'none';
+            tg.HapticFeedback.impactOccurred('medium');
+
+            // 1. Generate Result (The Math)
+            const isHotHotTrigger = Math.random() < 0.2; // 20% chance
+            const results = [];
+
+            for (let i = 0; i < reelCount; i++) {
+                const reelRes = [];
+                for (let j = 0; j < 3; j++) {
+                    let sym = {...getRandomSymbol()};
+                    sym.count = 1;
+                    if (isHotHotTrigger && Math.random() < 0.3) {
+                        sym.isHot = true;
+                        sym.count = (sym.id === '7') ? 3 : 2; // 7s triple, others double
+                    }
+                    reelRes.push(sym);
+                }
+                results.push(reelRes);
+            }
+
+            // 2. Animate
+            const anims = reelElements.map((strip, i) => {
+                // Add the result symbols to the top
+                for (let j = 2; j >= 0; j--) {
+                    addSymbol(strip, results[i][j], results[i][j].isHot);
+                }
+
+                const symbolHeight = strip.parentElement.offsetHeight / 3;
+                const moveY = symbolHeight * 3;
+
+                return gsap.fromTo(strip, 
+                    { y: -moveY - 500 }, 
+                    { 
+                        y: 0, 
+                        duration: 1.5 + (i * 0.2), 
+                        ease: "back.out(1.2)",
+                        onStart: () => strip.classList.add('blur'),
+                        onComplete: () => {
+                            strip.classList.remove('blur');
+                            tg.HapticFeedback.impactOccurred('light');
+                        }
+                    }
+                );
+            });
+
+            if (isHotHotTrigger) {
+                tg.HapticFeedback.notificationOccurred('warning');
+            }
+
+            await Promise.all(anims);
+            
+            checkWins(results);
+            isSpinning = false;
+            document.getElementById('spin-btn').disabled = false;
+        }
+
+        function checkWins(grid) {
+            let winTotal = 0;
+
+            PAYLINES.forEach(line => {
+                const firstSymId = grid[0][line[0]].id;
+                let matchCount = 0;
+                let totalSymbolWeights = 0;
+
+                for (let i = 0; i < reelCount; i++) {
+                    const currentSym = grid[i][line[i]];
+                    if (currentSym.id === firstSymId) {
+                        matchCount++;
+                        totalSymbolWeights += currentSym.count;
+                    } else {
+                        break;
+                    }
+                }
+
+                if (matchCount >= 3) {
+                    const baseVal = SYMBOLS.find(s => s.id === firstSymId).val;
+                    winTotal += (baseVal * totalSymbolWeights);
+                }
+            });
+
+            if (winTotal > 0) {
+                balance += winTotal;
+                showWin(winTotal);
+                tg.HapticFeedback.notificationOccurred('success');
+            }
+            updateUI(winTotal);
+        }
+
+        function showWin(amount) {
+            const el = document.getElementById('win-display');
+            el.innerText = `WIN $${amount}`;
+            el.style.display = 'block';
+            gsap.fromTo(el, { scale: 0.5, opacity: 0 }, { scale: 1.2, opacity: 1, duration: 0.5, ease: "elastic.out" });
+        }
+
+        function updateUI(lastWin = 0) {
+            document.getElementById('balance').innerText = balance;
+            if (lastWin > 0) {
+                document.getElementById('last-win').innerText = lastWin;
+            }
+        }
+
+        document.getElementById('spin-btn').addEventListener('click', spin);
+
+        // Start
+        init();
+    </script>
+</body>
+</html>
